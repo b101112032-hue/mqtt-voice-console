@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bio-Cybernetic MQTT Voice Assistant Console</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            bg: '#070B14',
+                            card: '#101826',
+                            cardHover: '#162238',
+                            border: 'rgba(56, 189, 248, 0.15)',
+                            borderGlow: 'rgba(56, 189, 248, 0.4)',
+                            cyan: '#38bdf8',
+                            emerald: '#34d399',
+                            violet: '#a78bfa',
+                            rose: '#fb7185',
+                            amber: '#fbbf24'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', '"Noto Sans TC"', 'Inter', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                        orbitron: ['"Orbitron"', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'neon-cyan': '0 0 25px rgba(56, 189, 248, 0.25)',
+                        'neon-emerald': '0 0 25px rgba(52, 211, 153, 0.25)',
+                        'neon-rose': '0 0 25px rgba(251, 113, 133, 0.25)',
+                        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+TC:wght@300;400;500;700&family=Orbitron:wght@500;700;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- MQTT.js -->
+    <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
+    <style>
+        /* Custom Scrollbar for Cyber Console */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #070B14;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #38bdf8;
+        }
+
+        /* Scanline Overlay Effect */
+        .scanlines {
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.15) 50%
+            ), linear-gradient(
+                90deg,
+                rgba(255, 0, 0, 0.01),
+                rgba(0, 255, 0, 0.005),
+                rgba(0, 0, 255, 0.01)
+            );
+            background-size: 100% 3px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* Metallic Glow & Borders */
+        .metal-card {
+            background: linear-gradient(135deg, rgba(22, 34, 56, 0.75) 0%, rgba(13, 20, 34, 0.92) 100%);
+            border: 1px solid rgba(56, 189, 248, 0.15);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37), inset 0 1px 1px 0 rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(12px);
+        }
+        .metal-card:hover {
+            border-color: rgba(56, 189, 248, 0.35);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5), inset 0 1px 2px 0 rgba(56, 189, 248, 0.12);
+        }
+
+        /* Waveform Animation */
+        @keyframes waveform {
+            0%, 100% { height: 4px; }
+            50% { height: 28px; }
+        }
+        .wave-bar {
+            animation: waveform 1.2s ease-in-out infinite;
+        }
+        .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+        .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+        .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+        .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+        .wave-bar:nth-child(6) { animation-delay: 0.5s; }
+        .wave-bar:nth-child(7) { animation-delay: 0.6s; }
+
+        /* Pulse Rings */
+        @keyframes cyber-pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            70% { transform: scale(1.4); opacity: 0; }
+            100% { transform: scale(1.4); opacity: 0; }
+        }
+        .pulse-ring-1 {
+            animation: cyber-pulse 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        .pulse-ring-2 {
+            animation: cyber-pulse 2s cubic-bezier(0.215, 0.61, 0.355, 1) 0.8s infinite;
+        }
+
+        /* HUD Hexagon Background Grid */
+        .hud-grid {
+            background-image: 
+                radial-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px),
+                radial-gradient(rgba(56, 189, 248, 0.04) 1px, transparent 1px);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+        }
+
+        /* Status Dot Ripple */
+        @keyframes status-pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+        }
+        .status-dot-active {
+            animation: status-pulse 2s infinite;
+        }
+    </style>
+</head>
+<body class="bg-cyber-bg text-slate-100 font-sans min-h-screen relative overflow-x-hidden hud-grid selection:bg-sky-500 selection:text-white">
+
+    <!-- Scanline Overlay -->
+    <div class="absolute inset-0 scanlines z-50 pointer-events-none fixed"></div>
+
+    <!-- Ambient Neon Background Glows -->
+    <div class="absolute top-0 left-1/4 w-[500px] h-[500px] bg-sky-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+    <div class="absolute top-1/3 right-1/4 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+    <div class="absolute bottom-1/4 left-1/3 w-[500px] h-[500px] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+    <div class="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-6 relative z-10 flex flex-col gap-8">
+
+        <!-- ==================== HEADER ==================== -->
+        <header class="metal-card rounded-2xl px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-4 z-40 backdrop-blur-xl">
+            <!-- Left Branding -->
+            <div class="flex items-center gap-3.5">
+                <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-sky-400/20 to-blue-600/20 border border-sky-400/40 flex items-center justify-center text-sky-400 shadow-neon-cyan">
+                    <i class="fa-solid fa-microchip text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-orbitron font-bold text-lg sm:text-xl tracking-wider bg-gradient-to-r from-sky-200 via-sky-400 to-indigo-300 bg-clip-text text-transparent">
+                        MQTT VOICE ASSISTANT CONSOLE
+                    </h1>
+                    <p class="text-[11px] text-slate-400 font-mono tracking-widest uppercase">
+                        SPEECH RECOGNITION • MQTT • IOT • MEDICAL INTERFACE
+                    </p>
+                </div>
+            </div>
+
+            <!-- Right Status Bar -->
+            <div class="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-mono">
+                <!-- Status Badge (REQUIRED ID: statusBadge, statusDot, statusText) -->
+                <div id="statusBadge" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700/60 shadow-inner">
+                    <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 status-dot-active transition-all duration-300"></span>
+                    <span id="statusText" class="text-slate-300 font-medium">Connecting...</span>
+                </div>
+
+                <!-- Broker Badge -->
+                <div class="hidden lg:flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700/60 text-slate-300">
+                    <i class="fa-solid fa-server text-sky-400 text-[11px]"></i>
+                    <span class="text-slate-400">Broker:</span>
+                    <span class="text-slate-200">broker.emqx.io</span>
+                </div>
+
+                <!-- Topic Badge -->
+                <div class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700/60 text-slate-300">
+                    <i class="fa-solid fa-hashtag text-indigo-400 text-[11px]"></i>
+                    <span class="text-slate-400">Topic:</span>
+                    <span class="text-sky-300 font-bold">jjlab/a</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- ==================== HERO VOICE CONTROL ==================== -->
+        <section class="metal-card rounded-3xl p-8 sm:p-12 text-center relative overflow-hidden flex flex-col items-center justify-center">
+            <!-- HUD Grid Accents -->
+            <div class="absolute top-4 left-6 text-[10px] font-mono text-slate-500 tracking-widest uppercase">SYS.CORE.01 // VOICE_ACTIVATION_CONSOLE</div>
+            <div class="absolute top-4 right-6 text-[10px] font-mono text-emerald-400/80 tracking-widest uppercase flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> SECURE LINK ACTIVE
+            </div>
+
+            <!-- Title & Subtitle -->
+            <div class="max-w-2xl mx-auto mb-8 mt-2">
+                <h2 class="font-orbitron text-2xl sm:text-4xl font-bold tracking-tight text-slate-100 mb-3">
+                    開始語音控制
+                </h2>
+                <p class="text-sm sm:text-base text-slate-400 font-normal">
+                    點擊中央醫療 AI 核心控制器，語音內容將自動辨識並發布至 MQTT Topic（停止發言 0.5 秒後自動關閉）。
+                </p>
+            </div>
+
+            <!-- Central Microphone Button Component (REQUIRED IDs: micBtn, micIcon, micStateLabel, rippleRing1, rippleRing2) -->
+            <div class="relative my-6 flex items-center justify-center">
+                <!-- Outer Ripple Rings -->
+                <div id="rippleRing1" class="absolute w-44 h-44 rounded-full border border-sky-400/30 pulse-ring-1 pointer-events-none hidden"></div>
+                <div id="rippleRing2" class="absolute w-52 h-52 rounded-full border border-sky-400/20 pulse-ring-2 pointer-events-none hidden"></div>
+
+                <!-- Main Microphone Interactive Button -->
+                <button id="micBtn" onclick="toggleSpeechRecognition()" 
+                    class="group relative w-36 h-36 sm:w-40 sm:h-40 rounded-full bg-gradient-to-b from-sky-400/20 to-blue-600/30 border-2 border-sky-400/50 hover:border-sky-400 flex flex-col items-center justify-center text-sky-300 shadow-neon-cyan transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer z-20"
+                    title="點擊開始/停止語音辨識" aria-label="麥克風控制按鈕">
+                    <!-- Inner Metal Core -->
+                    <div class="absolute inset-2.5 rounded-full bg-slate-950/85 border border-sky-400/30 flex flex-col items-center justify-center transition-all duration-300 group-hover:bg-slate-900">
+                        <i id="micIcon" class="fa-solid fa-microphone text-3xl sm:text-4xl text-sky-400 transition-transform duration-300 group-hover:scale-110 mb-1"></i>
+                        <span id="micStateLabel" class="text-[10px] font-mono uppercase tracking-wider text-sky-300/80">READY</span>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Voice Waveform Visualization -->
+            <div class="flex items-center justify-center gap-1.5 h-10 my-4" aria-label="語音等化器動畫">
+                <div class="w-1 bg-sky-400/40 rounded-full wave-bar h-1"></div>
+                <div class="w-1 bg-sky-400/60 rounded-full wave-bar h-1"></div>
+                <div class="w-1 bg-sky-400 rounded-full wave-bar h-1"></div>
+                <div class="w-1 bg-indigo-400 rounded-full wave-bar h-1"></div>
+                <div class="w-1 bg-sky-400 rounded-full wave-bar h-1"></div>
+                <div class="w-1 bg-sky-400/60 rounded-full wave-bar h-1"></div>
+                <div class="w-1 bg-sky-400/40 rounded-full wave-bar h-1"></div>
+            </div>
+
+            <div class="text-xs font-mono text-slate-500">
+                SPEECH RECOGNITION ENGINE: <span class="text-sky-300">WEB SPEECH API (zh-TW)</span>
+            </div>
+        </section>
+
+        <!-- ==================== SYSTEM OVERVIEW CARDS ==================== -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Card 1: Broker -->
+            <div class="metal-card rounded-2xl p-5 transition-all duration-300 hover:-translate-y-1">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">MQTT BROKER</span>
+                    <div class="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+                        <i class="fa-solid fa-network-wired text-sm"></i>
+                    </div>
+                </div>
+                <div class="text-base font-bold font-mono text-slate-100 truncate">broker.emqx.io</div>
+                <div class="text-[11px] text-slate-400 mt-1 font-mono">Secure WebSocket (8084)</div>
+            </div>
+
+            <!-- Card 2: Topic -->
+            <div class="metal-card rounded-2xl p-5 transition-all duration-300 hover:-translate-y-1">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">ACTIVE TOPIC</span>
+                    <div class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                        <i class="fa-solid fa-bullseye text-sm"></i>
+                    </div>
+                </div>
+                <div class="text-base font-bold font-mono text-sky-300 truncate">jjlab/a</div>
+                <div class="text-[11px] text-slate-400 mt-1 font-mono">Publish & Subscribe</div>
+            </div>
+
+            <!-- Card 3: Connection State -->
+            <div class="metal-card rounded-2xl p-5 transition-all duration-300 hover:-translate-y-1">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">LINK STATUS</span>
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                        <i class="fa-solid fa-shield-halved text-sm"></i>
+                    </div>
+                </div>
+                <div class="text-base font-bold font-mono text-emerald-400 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> ONLINE
+                </div>
+                <div class="text-[11px] text-slate-400 mt-1 font-mono">Realtime bi-directional</div>
+            </div>
+
+            <!-- Card 4: Messages Count (REQUIRED ID: msgCount) -->
+            <div class="metal-card rounded-2xl p-5 transition-all duration-300 hover:-translate-y-1">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">TOTAL MESSAGES</span>
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                        <i class="fa-solid fa-chart-line text-sm"></i>
+                    </div>
+                </div>
+                <div class="text-2xl font-bold font-mono text-slate-100" id="msgCount">0</div>
+                <div class="text-[11px] text-slate-400 mt-1 font-mono">Processed in session</div>
+            </div>
+        </section>
+
+        <!-- ==================== DUAL PANELS: TRANSCRIPT & LOGS ==================== -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Realtime Transcript Panel (REQUIRED ID: transcriptBox) -->
+            <div class="lg:col-span-5 metal-card rounded-2xl p-6 flex flex-col justify-between">
+                <div>
+                    <!-- Panel Header -->
+                    <div class="flex items-center justify-between pb-4 mb-4 border-b border-slate-800">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></div>
+                            <h3 class="font-orbitron font-bold text-sm tracking-wide text-slate-200">REALTIME TRANSCRIPT</h3>
+                        </div>
+                        <span class="text-[11px] font-mono text-slate-400 bg-slate-900 px-2.5 py-1 rounded-md border border-slate-800">
+                            Speech Recognition
+                        </span>
+                    </div>
+
+                    <!-- Transcript Screen Box -->
+                    <div id="transcriptBox" class="w-full h-48 sm:h-56 bg-slate-950/80 rounded-xl p-4 border border-slate-800/80 font-mono text-sm text-slate-300 overflow-y-auto mb-4 flex flex-col justify-center items-center text-center shadow-inner">
+                        <span class="text-slate-500 italic">等待語音輸入… (點擊麥克風開始說話)</span>
+                    </div>
+
+                    <!-- Last Updated Info -->
+                    <div class="flex items-center justify-between text-xs font-mono text-slate-500 mb-4 px-1">
+                        <span>STATUS: LISTENING READY</span>
+                        <span id="lastUpdatedTime">Last updated: --:--:--</span>
+                    </div>
+                </div>
+
+                <!-- Clear Transcript Action Button -->
+                <div class="flex justify-end pt-2 border-t border-slate-800/60">
+                    <button onclick="clearTranscript()" 
+                        class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/60 text-slate-300 text-xs font-mono flex items-center gap-2 transition-all duration-200 active:scale-95 cursor-pointer">
+                        <i class="fa-solid fa-rotate-right text-sky-400"></i> 清除文字
+                    </button>
+                </div>
+            </div>
+
+            <!-- MQTT Message Log Panel (REQUIRED ID: logContainer) -->
+            <div class="lg:col-span-7 metal-card rounded-2xl p-6 flex flex-col justify-between">
+                <div>
+                    <!-- Panel Header -->
+                    <div class="flex items-center justify-between pb-4 mb-4 border-b border-slate-800">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
+                            <h3 class="font-orbitron font-bold text-sm tracking-wide text-slate-200">MQTT MESSAGE LOGS</h3>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[11px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-2.5 py-1 rounded-md">
+                                Console Active
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Log Container Console -->
+                    <div id="logContainer" class="w-full h-48 sm:h-56 bg-[#090E17] rounded-xl p-4 border border-slate-800 font-mono text-xs overflow-y-auto space-y-2 shadow-inner mb-4">
+                        <div class="text-slate-500 italic">// System initialized. Waiting for connection events...</div>
+                    </div>
+                </div>
+
+                <!-- Log Controls -->
+                <div class="flex items-center justify-between pt-2 border-t border-slate-800/60">
+                    <span class="text-[11px] font-mono text-slate-500">TOPIC: jjlab/a // BROKER: EMQX</span>
+                    <button onclick="clearLogs()" 
+                        class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/60 text-slate-300 text-xs font-mono flex items-center gap-2 transition-all duration-200 active:scale-95 cursor-pointer">
+                        <i class="fa-solid fa-trash-can text-rose-400"></i> 清除紀錄
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ==================== WORKFLOW VISUALIZATION ==================== -->
+        <section class="metal-card rounded-2xl p-6">
+            <h3 class="font-orbitron font-bold text-sm tracking-wide text-slate-200 mb-6 flex items-center gap-2">
+                <i class="fa-solid fa-diagram-project text-sky-400"></i> VOICE TO MQTT ARCHITECTURE WORKFLOW
+            </h3>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <!-- Node 1 -->
+                <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex flex-col items-center text-center relative">
+                    <div class="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 mb-3 shadow-neon-cyan">
+                        <i class="fa-solid fa-microphone"></i>
+                    </div>
+                    <h4 class="font-orbitron text-xs font-bold text-slate-200 mb-1">Microphone</h4>
+                    <p class="text-[11px] text-slate-400 font-mono">Capture Voice Input</p>
+                </div>
+
+                <!-- Node 2 -->
+                <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex flex-col items-center text-center relative">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 mb-3">
+                        <i class="fa-solid fa-brain"></i>
+                    </div>
+                    <h4 class="font-orbitron text-xs font-bold text-slate-200 mb-1">Speech API</h4>
+                    <p class="text-[11px] text-slate-400 font-mono">Voice to Text (zh-TW)</p>
+                </div>
+
+                <!-- Node 3 -->
+                <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex flex-col items-center text-center relative">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-3">
+                        <i class="fa-solid fa-file-lines"></i>
+                    </div>
+                    <h4 class="font-orbitron text-xs font-bold text-slate-200 mb-1">Text Processing</h4>
+                    <p class="text-[11px] text-slate-400 font-mono">Payload Formatter</p>
+                </div>
+
+                <!-- Node 4 -->
+                <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex flex-col items-center text-center relative">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-3">
+                        <i class="fa-solid fa-satellite-dish"></i>
+                    </div>
+                    <h4 class="font-orbitron text-xs font-bold text-slate-200 mb-1">MQTT Broker</h4>
+                    <p class="text-[11px] text-slate-400 font-mono">Publish to jjlab/a</p>
+                </div>
+
+                <!-- Node 5 -->
+                <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex flex-col items-center text-center relative">
+                    <div class="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-3">
+                        <i class="fa-solid fa-microchip"></i>
+                    </div>
+                    <h4 class="font-orbitron text-xs font-bold text-slate-200 mb-1">IoT Device</h4>
+                    <p class="text-[11px] text-slate-400 font-mono">Receive & Execute</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SYSTEM INFORMATION ==================== -->
+        <section class="metal-card rounded-2xl p-6">
+            <h3 class="font-orbitron font-bold text-sm tracking-wide text-slate-200 mb-6 flex items-center gap-2">
+                <i class="fa-solid fa-circle-info text-sky-400"></i> SYSTEM INFORMATION & TECHNICAL METRICS
+            </h3>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono text-xs">
+                <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-800/60 flex flex-col gap-1">
+                    <span class="text-slate-500 uppercase">MQTT BROKER HOST</span>
+                    <span class="text-slate-200 font-bold">broker.emqx.io</span>
+                </div>
+                <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-800/60 flex flex-col gap-1">
+                    <span class="text-slate-500 uppercase">TRANSPORT PROTOCOL</span>
+                    <span class="text-sky-300 font-bold">WSS (WebSocket Secure)</span>
+                </div>
+                <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-800/60 flex flex-col gap-1">
+                    <span class="text-slate-500 uppercase">CONNECTION PORT</span>
+                    <span class="text-slate-200 font-bold">8084</span>
+                </div>
+                <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-800/60 flex flex-col gap-1">
+                    <span class="text-slate-500 uppercase">SUBSCRIBE / PUBLISH TOPIC</span>
+                    <span class="text-indigo-300 font-bold">jjlab/a</span>
+                </div>
+                <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-800/60 flex flex-col gap-1">
+                    <span class="text-slate-500 uppercase">SPEECH LANGUAGE</span>
+                    <span class="text-emerald-300 font-bold">zh-TW (Traditional Chinese)</span>
+                </div>
+                <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-800/60 flex flex-col gap-1">
+                    <span class="text-slate-500 uppercase">SPEECH RECOGNITION API</span>
+                    <span class="text-slate-200 font-bold">Web Speech API (webkitSpeechRecognition)</span>
+                </div>
+                <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-800/60 flex flex-col gap-1">
+                    <span class="text-slate-500 uppercase">CLIENT SESSION STATE</span>
+                    <span class="text-emerald-400 font-bold">Active & Synchronized</span>
+                </div>
+                <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-800/60 flex flex-col gap-1">
+                    <span class="text-slate-500 uppercase">SECURITY ENCRYPTION</span>
+                    <span class="text-sky-400 font-bold">TLS 1.3 / Secure WebSocket</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== FOOTER ==================== -->
+        <footer class="text-center py-6 text-xs font-mono text-slate-500 border-t border-slate-800/60 mt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+                <span>MQTT Voice Assistant Console &copy; 2026 // Medical Cybernetics UI Dashboard</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> EMQX Connected</span>
+                <span class="text-slate-600">|</span>
+                <span>Secure WSS</span>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- ==================== JAVASCRIPT LOGIC ==================== -->
+    <script>
+        // DOM Elements mapping with mandatory IDs
+        const statusBadge = document.getElementById('statusBadge');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const micBtn = document.getElementById('micBtn');
+        const micIcon = document.getElementById('micIcon');
+        const micStateLabel = document.getElementById('micStateLabel');
+        const rippleRing1 = document.getElementById('rippleRing1');
+        const rippleRing2 = document.getElementById('rippleRing2');
+        const transcriptBox = document.getElementById('transcriptBox');
+        const logContainer = document.getElementById('logContainer');
+        const msgCountElem = document.getElementById('msgCount');
+        const lastUpdatedTime = document.getElementById('lastUpdatedTime');
+
+        let client = null;
+        let msgCount = 0;
+        let recognition = null;
+        let isListening = false;
+        let silenceTimer = null; // 用於計算停止發言的計時器
+
+        // MQTT Configuration
+        const MQTT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+        const MQTT_TOPIC = 'jjlab/a';
+
+        // Initialize MQTT on page load
+        function initMQTT() {
+            addLog('SYSTEM', 'Initializing secure WebSocket MQTT connection to broker.emqx.io...');
+            updateConnectionStatus('connecting', 'Connecting...');
+
+            const options = {
+                clientId: 'mqtt_voice_web_' + Math.random().toString(16).substring(2, 8),
+                clean: true,
+                connectTimeout: 5000,
+            };
+
+            client = mqtt.connect(MQTT_BROKER, options);
+
+            client.on('connect', () => {
+                addLog('CONNECTED', 'Successfully connected to EMQX broker.');
+                updateConnectionStatus('connected', 'Connected');
+                
+                client.subscribe(MQTT_TOPIC, (err) => {
+                    if (!err) {
+                        addLog('SYSTEM', `Subscribed to topic: ${MQTT_TOPIC}`);
+                    } else {
+                        addLog('ERROR', `Failed to subscribe to topic: ${err.message}`);
+                    }
+                });
+            });
+
+            client.on('message', (topic, payload) => {
+                const messageStr = payload.toString();
+                msgCount++;
+                msgCountElem.textContent = msgCount;
+                addLog('RECEIVED', `[${topic}] ${messageStr}`);
+            });
+
+            client.on('error', (err) => {
+                addLog('ERROR', `MQTT Connection error: ${err.message}`);
+                updateConnectionStatus('error', 'Connection Error');
+                client.end();
+            });
+
+            client.on('offline', () => {
+                addLog('SYSTEM', 'MQTT client is offline.');
+                updateConnectionStatus('error', 'Offline');
+            });
+        }
+
+        // Update Connection Status UI
+        function updateConnectionStatus(state, text) {
+            statusText.textContent = text;
+            statusDot.className = 'w-2.5 h-2.5 rounded-full transition-all duration-300';
+            
+            if (state === 'connected') {
+                statusDot.classList.add('bg-emerald-400', 'status-dot-active');
+                statusBadge.className = 'flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-950/40 border border-emerald-500/40 shadow-inner';
+            } else if (state === 'connecting') {
+                statusDot.classList.add('bg-amber-400', 'animate-ping');
+                statusBadge.className = 'flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-950/40 border border-amber-500/40 shadow-inner';
+            } else {
+                statusDot.classList.add('bg-rose-400');
+                statusBadge.className = 'flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-950/40 border border-rose-500/40 shadow-inner';
+            }
+        }
+
+        // Initialize Speech Recognition
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!SpeechRecognition) {
+                addLog('ERROR', 'Web Speech API is not supported in this browser.');
+                transcriptBox.innerHTML = '<span class="text-rose-400">您的瀏覽器不支援 Web Speech API，請使用 Chrome。</span>';
+                micBtn.disabled = true;
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.lang = 'zh-TW';
+            recognition.continuous = true; // 設為 true 以允許連續聆聽直到 0.5 秒靜音自動關閉
+            recognition.interimResults = true;
+
+            recognition.onstart = () => {
+                isListening = true;
+                updateMicUI('listening');
+                addLog('SYSTEM', 'Speech recognition started (zh-TW).');
+                resetSilenceTimer();
+            };
+
+            recognition.onresult = (event) => {
+                // 每次有新的語音辨識結果或中間狀態時，重置 0.5 秒停止計時器
+                resetSilenceTimer();
+
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+
+                const currentTime = new Date().toLocaleTimeString();
+                lastUpdatedTime.textContent = `Last updated: ${currentTime}`;
+
+                if (finalTranscript) {
+                    transcriptBox.innerHTML = `<span class="text-slate-100 font-bold">${finalTranscript}</span>`;
+                    addLog('SYSTEM', `Recognized speech: "${finalTranscript}"`);
+                    publishToMQTT(finalTranscript);
+                } else if (interimTranscript) {
+                    transcriptBox.innerHTML = `<span class="text-sky-400 italic">${interimTranscript}</span>`;
+                }
+            };
+
+            recognition.onerror = (event) => {
+                clearSilenceTimer();
+                addLog('ERROR', `Speech recognition error: ${event.error}`);
+                updateMicUI('error');
+                stopListeningUI();
+            };
+
+            recognition.onend = () => {
+                clearSilenceTimer();
+                isListening = false;
+                stopListeningUI();
+                addLog('SYSTEM', 'Speech recognition ended.');
+            };
+        }
+
+        // 重置 0.5秒自動關閉計時器
+        function resetSilenceTimer() {
+            clearSilenceTimer();
+            silenceTimer = setTimeout(() => {
+                if (isListening && recognition) {
+                    addLog('SYSTEM', 'Silence detected for 0.5s. Automatically stopping microphone.');
+                    recognition.stop();
+                }
+            }, 500); // 500ms = 0.5秒
+        }
+
+        // 清除計時器
+        function clearSilenceTimer() {
+            if (silenceTimer) {
+                clearTimeout(silenceTimer);
+                silenceTimer = null;
+            }
+        }
+
+        // Toggle Speech Recognition
+        function toggleSpeechRecognition() {
+            if (!recognition) {
+                initSpeechRecognition();
+            }
+
+            if (isListening) {
+                clearSilenceTimer();
+                recognition.stop();
+            } else {
+                try {
+                    recognition.start();
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        }
+
+        // Stop Listening UI State
+        function stopListeningUI() {
+            isListening = false;
+            clearSilenceTimer();
+            updateMicUI('ready');
+        }
+
+        // Update Microphone Button Visual State
+        function updateMicUI(state) {
+            if (state === 'listening') {
+                micBtn.className = 'group relative w-36 h-36 sm:w-40 sm:h-40 rounded-full bg-gradient-to-b from-emerald-400/30 to-teal-600/40 border-2 border-emerald-400 flex flex-col items-center justify-center text-emerald-300 shadow-neon-emerald transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer z-20';
+                micIcon.className = 'fa-solid fa-microphone text-3xl sm:text-4xl text-emerald-400 transition-transform duration-300 group-hover:scale-110 mb-1';
+                micStateLabel.textContent = 'LISTENING';
+                rippleRing1.classList.remove('hidden');
+                rippleRing2.classList.remove('hidden');
+            } else if (state === 'error') {
+                micBtn.className = 'group relative w-36 h-36 sm:w-40 sm:h-40 rounded-full bg-gradient-to-b from-rose-400/30 to-red-600/40 border-2 border-rose-400 flex flex-col items-center justify-center text-rose-300 shadow-neon-rose transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer z-20';
+                micIcon.className = 'fa-solid fa-triangle-exclamation text-3xl sm:text-4xl text-rose-400 transition-transform duration-300 group-hover:scale-110 mb-1';
+                micStateLabel.textContent = 'ERROR';
+                rippleRing1.classList.add('hidden');
+                rippleRing2.classList.add('hidden');
+            } else {
+                micBtn.className = 'group relative w-36 h-36 sm:w-40 sm:h-40 rounded-full bg-gradient-to-b from-sky-400/20 to-blue-600/30 border-2 border-sky-400/50 hover:border-sky-400 flex flex-col items-center justify-center text-sky-300 shadow-neon-cyan transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer z-20';
+                micIcon.className = 'fa-solid fa-microphone text-3xl sm:text-4xl text-sky-400 transition-transform duration-300 group-hover:scale-110 mb-1';
+                micStateLabel.textContent = 'READY';
+                rippleRing1.classList.add('hidden');
+                rippleRing2.classList.add('hidden');
+            }
+        }
+
+        // Publish to MQTT
+        function publishToMQTT(message) {
+            if (client && client.connected) {
+                client.publish(MQTT_TOPIC, message, (err) => {
+                    if (!err) {
+                        addLog('PUBLISH', `[${MQTT_TOPIC}] ${message}`);
+                    } else {
+                        addLog('ERROR', `Failed to publish message: ${err.message}`);
+                    }
+                });
+            } else {
+                addLog('ERROR', 'Cannot publish: MQTT client is not connected.');
+            }
+        }
+
+        // Clear Transcript
+        function clearTranscript() {
+            transcriptBox.innerHTML = '<span class="text-slate-500 italic">等待語音輸入… (點擊麥克風開始說話)</span>';
+            lastUpdatedTime.textContent = 'Last updated: --:--:--';
+            addLog('SYSTEM', 'Transcript cleared.');
+        }
+
+        // Clear Logs
+        function clearLogs() {
+            logContainer.innerHTML = '<div class="text-slate-500 italic">// Logs cleared.</div>';
+        }
+
+        // Add Log Entry to Console
+        function addLog(type, message) {
+            const time = new Date().toLocaleTimeString();
+            const logItem = document.createElement('div');
+            logItem.className = 'flex items-start gap-3 font-mono text-xs border-b border-slate-900/50 pb-1.5 animate-fadeIn';
+
+            let typeBadgeClass = 'text-slate-400';
+            let iconClass = 'fa-solid fa-circle-info text-slate-400';
+
+            if (type === 'CONNECTED') {
+                typeBadgeClass = 'text-emerald-400 font-bold';
+                iconClass = 'fa-solid fa-circle-check text-emerald-400';
+            } else if (type === 'PUBLISH') {
+                typeBadgeClass = 'text-sky-400 font-bold';
+                iconClass = 'fa-solid fa-arrow-up text-sky-400';
+            } else if (type === 'RECEIVED') {
+                typeBadgeClass = 'text-amber-400 font-bold';
+                iconClass = 'fa-solid fa-arrow-down text-amber-400';
+            } else if (type === 'ERROR') {
+                typeBadgeClass = 'text-rose-400 font-bold';
+                iconClass = 'fa-solid fa-triangle-exclamation text-rose-400';
+            } else {
+                typeBadgeClass = 'text-slate-400';
+            }
+
+            logItem.innerHTML = `
+                <span class="text-slate-500 shrink-0">${time}</span>
+                <span class="w-20 shrink-0 flex items-center gap-1.5 ${typeBadgeClass}"><i class="${iconClass} text-[10px]"></i> ${type}</span>
+                <span class="text-slate-200 break-all">${message}</span>
+            `;
+
+            logContainer.appendChild(logItem);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // Run initialization on DOM load
+        window.addEventListener('DOMContentLoaded', () => {
+            initMQTT();
+            initSpeechRecognition();
+        });
+    </script>
+</body>
+</html>
